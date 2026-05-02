@@ -17,7 +17,7 @@ public class Race {
     @Column(nullable = false) private String region;
     @Column(nullable = false) private LocalDate date;
     @Column(nullable = false) private Double distanceKm;
-    @Column(nullable = false) private Integer elevationGainM;
+    @Column(name = "elevation_gain_m", nullable = false) private Integer elevationGainM;
     @Enumerated(EnumType.STRING) @Column(nullable = false) private TerrainType terrainType;
     @Enumerated(EnumType.STRING) @Column(nullable = false) private TechnicalityLevel technicalityLevel;
     @Column(nullable = false) private Integer cutoffTimeMinutes;
