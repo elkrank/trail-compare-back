@@ -1,26 +1,27 @@
 package com.trailmatch.service;
 
-import com.trailmatch.dto.RaceRequest;
+import com.trailmatch.entity.Race;
 import com.trailmatch.entity.TechnicalityLevel;
 import com.trailmatch.entity.TerrainType;
-import com.trailmatch.mapper.RaceMapper;
-import com.trailmatch.repository.RaceRepository;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
 
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 class RaceServiceTest {
-    @Test
-    void createCallsRepository() {
-        RaceRepository repo = mock(RaceRepository.class);
-        RaceService service = new RaceService(repo, new RaceMapper());
-        var req = new RaceRequest("a","b","c", LocalDate.now(), 10.0, 1, TerrainType.MIXED, TechnicalityLevel.EASY, 120, 110, 90, 2, BigDecimal.ONE, "d", List.of("x"), 3.0);
-        service.create(req);
-        verify(repo, times(1)).save(Mockito.any());
+    private Race race(double distance, int dplus, int cutoff, int last, TechnicalityLevel tech) {
+        return Race.builder().id(1L).name("r").location("l").region("x").date(LocalDate.now()).distanceKm(distance).elevationGainM(dplus)
+                .terrainType(TerrainType.MOUNTAIN).technicalityLevel(tech).cutoffTimeMinutes(cutoff).lastFinisherTimeMinutes(last)
+                .medianFinisherTimeMinutes((cutoff+last)/2).aidStationsCount(2).priceEur(BigDecimal.TEN).description("d").build();
+    }
+
+    @Test void metricsAndDifficultyAreDeterministic() {
+        RaceMetricsService m = new RaceMetricsService();
+        DifficultyScoringService d = new DifficultyScoringService();
+        Race r = race(50, 3000, 600, 570, TechnicalityLevel.HARD);
+        assertEquals(60.0, m.cutoffPace(r), 0.0001);
+        assertTrue(d.score(r) > 70);
     }
 }

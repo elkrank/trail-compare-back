@@ -24,5 +24,5 @@ public record RaceRequest(
         @NotNull @DecimalMin("0.00") BigDecimal priceEur,
         @NotBlank @Size(max=3000) String description,
         @NotNull @Size(max=10) List<@Size(max=30) String> tags,
-        @NotNull Double gradient
+        String sourceUrl
 ) {}

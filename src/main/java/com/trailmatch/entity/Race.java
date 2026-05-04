@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -30,5 +31,10 @@ public class Race {
     @CollectionTable(name = "race_tags", joinColumns = @JoinColumn(name = "race_id"))
     @Column(name = "tag", nullable = false, length = 30)
     private List<String> tags;
-    @Column(nullable = false) private Double gradient;
+    private String sourceUrl;
+    @Column(nullable = false) private Instant createdAt;
+    @Column(nullable = false) private Instant updatedAt;
+
+    @PrePersist void onCreate(){ createdAt = Instant.now(); updatedAt = createdAt; }
+    @PreUpdate void onUpdate(){ updatedAt = Instant.now(); }
 }
