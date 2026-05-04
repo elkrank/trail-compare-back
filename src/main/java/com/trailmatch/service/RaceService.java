@@ -3,6 +3,7 @@ package com.trailmatch.service;
 import com.trailmatch.dto.RaceRequest;
 import com.trailmatch.dto.RaceResponse;
 import com.trailmatch.entity.Race;
+import com.trailmatch.entity.TechnicalityLevel;
 import com.trailmatch.entity.TerrainType;
 import com.trailmatch.exception.ApiException;
 import com.trailmatch.mapper.RaceMapper;
@@ -12,23 +13,27 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.util.*;
 
 @Service @RequiredArgsConstructor
 public class RaceService {
     private final RaceRepository repo; private final RaceMapper mapper;
-    public Page<RaceResponse> findAll(String region, TerrainType terrainType, Double minDistance, Double maxDistance, LocalDate minDate, LocalDate maxDate, int page, int size, String sort){
+    public Page<RaceResponse> findAll(String search, String region, Integer month, TerrainType terrainType, TechnicalityLevel technicalityLevel,
+                                      Double minDistanceKm, Double maxDistanceKm, Integer minElevationGainM, Integer maxElevationGainM,
+                                      int page, int size, String sort){
         Sort s = Sort.by(sort.startsWith("-") ? Sort.Direction.DESC : Sort.Direction.ASC, sort.replace("-", ""));
         Pageable p = PageRequest.of(page, size, s);
         return repo.findAll((root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            if(search != null) predicates.add(cb.like(cb.lower(root.get("name")), "%" + search.toLowerCase() + "%"));
             if(region != null) predicates.add(cb.equal(root.get("region"), region));
+            if(month != null) predicates.add(cb.equal(cb.function("month", Integer.class, root.get("date")), month));
             if(terrainType != null) predicates.add(cb.equal(root.get("terrainType"), terrainType));
-            if(minDistance != null) predicates.add(cb.ge(root.get("distanceKm"), minDistance));
-            if(maxDistance != null) predicates.add(cb.le(root.get("distanceKm"), maxDistance));
-            if(minDate != null) predicates.add(cb.greaterThanOrEqualTo(root.get("date"), minDate));
-            if(maxDate != null) predicates.add(cb.lessThanOrEqualTo(root.get("date"), maxDate));
+            if(technicalityLevel != null) predicates.add(cb.equal(root.get("technicalityLevel"), technicalityLevel));
+            if(minDistanceKm != null) predicates.add(cb.ge(root.get("distanceKm"), minDistanceKm));
+            if(maxDistanceKm != null) predicates.add(cb.le(root.get("distanceKm"), maxDistanceKm));
+            if(minElevationGainM != null) predicates.add(cb.ge(root.get("elevationGainM"), minElevationGainM));
+            if(maxElevationGainM != null) predicates.add(cb.le(root.get("elevationGainM"), maxElevationGainM));
             return cb.and(predicates.toArray(Predicate[]::new));
         }, p).map(mapper::toResponse);
     }
