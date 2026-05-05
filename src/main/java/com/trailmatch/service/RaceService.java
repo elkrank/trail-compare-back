@@ -21,7 +21,22 @@ public class RaceService {
     public Page<RaceResponse> findAll(String search, String region, Integer month, TerrainType terrainType, TechnicalityLevel technicalityLevel,
                                       Double minDistanceKm, Double maxDistanceKm, Integer minElevationGainM, Integer maxElevationGainM,
                                       int page, int size, String sort){
-        Sort s = Sort.by(sort.startsWith("-") ? Sort.Direction.DESC : Sort.Direction.ASC, sort.replace("-", ""));
+        String sortValue = (sort == null || sort.isBlank()) ? "date" : sort.trim();
+        Sort.Direction direction = Sort.Direction.ASC;
+        String property = sortValue;
+
+        if (sortValue.startsWith("-")) {
+            direction = Sort.Direction.DESC;
+            property = sortValue.substring(1);
+        } else if (sortValue.contains(",")) {
+            String[] parts = sortValue.split(",", 2);
+            property = parts[0].trim();
+            if (parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim())) {
+                direction = Sort.Direction.DESC;
+            }
+        }
+
+        Sort s = Sort.by(direction, property);
         Pageable p = PageRequest.of(page, size, s);
         return repo.findAll((root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
