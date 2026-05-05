@@ -17,12 +17,21 @@ import java.util.List;
 public class JwtAuthFilter extends GenericFilter {
     private final JwtService jwtService;
     @Override public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
-        String auth = ((HttpServletRequest) request).getHeader(HttpHeaders.AUTHORIZATION);
+        HttpServletRequest req = (HttpServletRequest) request;
+        if (!req.getRequestURI().startsWith("/api/admin/")) {
+            chain.doFilter(request, response);
+            return;
+        }
+        String auth = req.getHeader(HttpHeaders.AUTHORIZATION);
         if (auth != null && auth.startsWith("Bearer ")) {
-            Claims c = jwtService.parse(auth.substring(7));
-            if ("access".equals(c.get("type", String.class))) {
-                var authorities = List.of(new SimpleGrantedAuthority(c.get("role", String.class)));
-                SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(c.getSubject(), null, authorities));
+            try {
+                Claims c = jwtService.parse(auth.substring(7));
+                if ("access".equals(c.get("type", String.class))) {
+                    var authorities = List.of(new SimpleGrantedAuthority(c.get("role", String.class)));
+                    SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(c.getSubject(), null, authorities));
+                }
+            } catch (RuntimeException ignored) {
+                SecurityContextHolder.clearContext();
             }
         }
         chain.doFilter(request, response);
