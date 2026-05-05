@@ -23,7 +23,7 @@ public class SecurityConfig {
     @Bean SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http.csrf(csrf -> csrf.disable()).sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/api/admin/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/races/**").permitAll().requestMatchers("/api/admin/**").hasRole("ADMIN").anyRequest().authenticated())
+                        .requestMatchers(HttpMethod.GET, "/api/races/**").permitAll().requestMatchers("/api/admin/**").hasRole("ADMIN").anyRequest().permitAll())
                 .addFilterBefore(rate, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class).cors(c -> {})
                 .headers(h -> h.frameOptions(f -> f.sameOrigin()).contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"))).build();
