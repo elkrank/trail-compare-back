@@ -1,5 +1,6 @@
 package com.trailmatch.controller.admin;
 
+import com.trailmatch.dto.RaceGpxUploadResponse;
 import com.trailmatch.dto.RaceRequest;
 import com.trailmatch.dto.RaceResponse;
 import com.trailmatch.exception.ApiException;
