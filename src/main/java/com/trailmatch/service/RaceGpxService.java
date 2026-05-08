@@ -1,5 +1,6 @@
 package com.trailmatch.service;
 
+import com.trailmatch.dto.RaceGpxUploadResponse;
 import com.trailmatch.entity.Race;
 import com.trailmatch.entity.RaceElevationProfilePoint;
 import com.trailmatch.exception.ApiException;
@@ -29,7 +30,7 @@ public class RaceGpxService {
     private final ElevationProfileCalculator elevationProfileCalculator;
 
     @Transactional
-    public ElevationProfile upload(Long raceId, MultipartFile file) {
+    public RaceGpxUploadResponse upload(Long raceId, MultipartFile file) {
         Race race = raceRepository.findById(raceId)
                 .orElseThrow(() -> new ApiException(404, "race_not_found"));
 
@@ -46,7 +47,7 @@ public class RaceGpxService {
         persistRaceSummary(race, filename, profile);
         replaceProfilePoints(race, profile);
 
-        return profile;
+        return new RaceGpxUploadResponse(race.getId(), filename, file.getContentType(), file.getSize(), "uploaded");
     }
 
     private ElevationProfile parseProfile(MultipartFile file) {

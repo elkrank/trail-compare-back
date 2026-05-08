@@ -1,5 +1,6 @@
 package com.trailmatch.service;
 
+import com.trailmatch.dto.RaceGpxUploadResponse;
 import com.trailmatch.entity.Race;
 import com.trailmatch.entity.RaceElevationProfilePoint;
 import com.trailmatch.entity.TechnicalityLevel;
@@ -59,9 +60,13 @@ class RaceGpxServiceTest {
         when(elevationProfileCalculator.calculate(eq(track), eq(500))).thenReturn(profile);
         MockMultipartFile file = new MockMultipartFile("file", "trace.gpx", "application/gpx+xml", "<gpx></gpx>".getBytes(StandardCharsets.UTF_8));
 
-        ElevationProfile response = service.upload(42L, file);
+        RaceGpxUploadResponse response = service.upload(42L, file);
 
-        assertEquals(profile, response);
+        assertEquals(42L, response.raceId());
+        assertEquals("trace.gpx", response.filename());
+        assertEquals("application/gpx+xml", response.contentType());
+        assertEquals(file.getSize(), response.sizeBytes());
+        assertEquals("uploaded", response.status());
         assertEquals(12.34, race.getDistanceKm());
         assertEquals(457, race.getElevationGainM());
         assertEquals(123, race.getElevationLossM());
