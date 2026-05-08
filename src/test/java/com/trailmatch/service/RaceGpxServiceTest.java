@@ -76,6 +76,7 @@ class RaceGpxServiceTest {
         assertNotNull(race.getGpxImportedAt());
         verify(raceRepository).save(race);
         verify(pointRepository).deleteByRaceId(42L);
+        verify(pointRepository).flush();
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<RaceElevationProfilePoint>> pointsCaptor = ArgumentCaptor.forClass(List.class);
