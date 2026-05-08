@@ -1,7 +1,10 @@
 package com.trailmatch.entity;
 
+import com.trailmatch.dto.ElevationProfilePointDto;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -32,6 +35,14 @@ public class Race {
     @Column(name = "tag", nullable = false, length = 30)
     private List<String> tags;
     private String sourceUrl;
+    @Column(name = "gpx_file_name") private String gpxFileName;
+    @Column(name = "gpx_imported_at") private Instant gpxImportedAt;
+    @Column(name = "elevation_loss_m") private Integer elevationLossM;
+    @Column(name = "min_elevation_m") private Integer minElevationM;
+    @Column(name = "max_elevation_m") private Integer maxElevationM;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "elevation_profile", columnDefinition = "jsonb")
+    private List<ElevationProfilePointDto> elevationProfile;
     @Column(nullable = false) private Instant createdAt;
     @Column(nullable = false) private Instant updatedAt;
 
