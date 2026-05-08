@@ -1,13 +1,13 @@
 package com.trailmatch.controller.admin;
 
 import com.trailmatch.config.SecurityConfig;
+import com.trailmatch.dto.RaceGpxUploadResponse;
 import com.trailmatch.exception.ApiException;
 import com.trailmatch.security.JwtAuthFilter;
 import com.trailmatch.security.JwtService;
 import com.trailmatch.security.LoginRateLimitFilter;
 import com.trailmatch.service.RaceGpxService;
 import com.trailmatch.service.RaceService;
-import com.trailmatch.service.gpx.ElevationProfile;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -16,8 +16,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -79,12 +77,14 @@ class AdminRaceControllerIT {
     @Test
     @WithMockUser(roles = "ADMIN")
     void uploadGpxWithAdminRoleIsAccepted() throws Exception {
-        ElevationProfile profile = new ElevationProfile(0.0, 0.0, 0.0, null, null, List.of());
-        when(raceGpxService.upload(eq(1L), any())).thenReturn(profile);
+        RaceGpxUploadResponse response = new RaceGpxUploadResponse(1L, "track.gpx", "application/gpx+xml", 6L, "uploaded");
+        when(raceGpxService.upload(eq(1L), any())).thenReturn(response);
 
         mockMvc.perform(multipart("/api/admin/races/{id}/gpx", 1L).file(gpxFile()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.distanceKm").value(0.0));
+                .andExpect(jsonPath("$.raceId").value(1))
+                .andExpect(jsonPath("$.filename").value("track.gpx"))
+                .andExpect(jsonPath("$.status").value("uploaded"));
 
         verify(raceGpxService).upload(eq(1L), any());
     }

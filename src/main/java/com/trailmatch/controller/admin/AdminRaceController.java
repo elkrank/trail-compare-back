@@ -1,10 +1,10 @@
 package com.trailmatch.controller.admin;
 
+import com.trailmatch.dto.RaceGpxUploadResponse;
 import com.trailmatch.dto.RaceRequest;
 import com.trailmatch.dto.RaceResponse;
 import com.trailmatch.service.RaceGpxService;
 import com.trailmatch.service.RaceService;
-import com.trailmatch.service.gpx.ElevationProfile;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -23,7 +23,7 @@ public class AdminRaceController {
     @DeleteMapping("/{id}") public void delete(@PathVariable Long id){ service.delete(id); }
 
     @PostMapping(path = "/{id}/gpx", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ElevationProfile uploadGpx(@PathVariable Long id, @RequestParam(value = "file", required = false) MultipartFile file) {
-        return raceGpxService.upload(id, file);
+    public RaceGpxUploadResponse uploadGpx(@PathVariable("id") Long raceId, @RequestParam(value = "file", required = false) MultipartFile file) {
+        return raceGpxService.upload(raceId, file);
     }
 }
