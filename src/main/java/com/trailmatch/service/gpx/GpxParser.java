@@ -1,164 +1,105 @@
 package com.trailmatch.service.gpx;
 
 import com.trailmatch.exception.ApiException;
+import org.springframework.stereotype.Component;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 import javax.xml.XMLConstants;
-import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamConstants;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamReader;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Streaming GPX parser dedicated to extracting usable track points only.
- *
- * <p>Invalid latitude/longitude values make a {@code trkpt} unusable; those
- * points are ignored so a partially valid GPX file can still be processed.</p>
- */
+@Component
 public class GpxParser {
-    private static final String TRKPT = "trkpt";
-    private static final String ELE = "ele";
-    private static final String TIME = "time";
-
-    public List<GpxTrackPoint> parse(InputStream inputStream) {
-        XMLInputFactory factory = secureXmlInputFactory();
-        List<GpxTrackPoint> points = new ArrayList<>();
-        boolean hasUsableCoordinatePoint = false;
-
+    public GpxTrack parse(InputStream inputStream) {
         try {
-            XMLStreamReader reader = factory.createXMLStreamReader(inputStream);
-            try {
-                while (reader.hasNext()) {
-                    int event = reader.next();
-                    if (event == XMLStreamConstants.DTD) {
-                        throw new XMLStreamException("DTD declarations are not allowed in GPX files");
-                    }
-                    if (event == XMLStreamConstants.START_ELEMENT && TRKPT.equals(reader.getLocalName())) {
-                        ParsedTrackPoint parsedPoint = readTrackPoint(reader);
-                        if (parsedPoint.hasUsableCoordinates()) {
-                            hasUsableCoordinatePoint = true;
-                        }
-                        if (parsedPoint.trackPoint() != null) {
-                            points.add(parsedPoint.trackPoint());
-                        }
-                    }
-                }
-            } finally {
-                reader.close();
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setXIncludeAware(false);
+            factory.setExpandEntityReferences(false);
+
+            Document document = factory.newDocumentBuilder().parse(inputStream);
+            Element root = document.getDocumentElement();
+            if (root == null || !"gpx".equals(localName(root))) {
+                throw new ApiException(400, "invalid_gpx");
             }
-        } catch (XMLStreamException ex) {
+
+            NodeList elements = root.getElementsByTagName("*");
+            List<GpxPoint> points = new ArrayList<>();
+            for (int i = 0; i < elements.getLength(); i++) {
+                Node node = elements.item(i);
+                if (node instanceof Element trkpt && "trkpt".equals(localName(trkpt))) {
+                    parsePoint(trkpt).ifPresent(points::add);
+                }
+            }
+            return new GpxTrack(points);
+        } catch (ApiException ex) {
+            throw ex;
+        } catch (ParserConfigurationException | SAXException | IOException ex) {
             throw new ApiException(400, "invalid_gpx");
         }
-
-        if (!hasUsableCoordinatePoint) {
-            throw new ApiException(400, "gpx_no_usable_point");
-        }
-        if (points.isEmpty()) {
-            throw new ApiException(400, "gpx_no_elevation_data");
-        }
-
-        return List.copyOf(points);
     }
 
-    private XMLInputFactory secureXmlInputFactory() {
-        XMLInputFactory factory = XMLInputFactory.newFactory();
-        setPropertyIfSupported(factory, XMLInputFactory.SUPPORT_DTD, false);
-        setPropertyIfSupported(factory, XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
-        setPropertyIfSupported(factory, XMLInputFactory.IS_REPLACING_ENTITY_REFERENCES, false);
-        setPropertyIfSupported(factory, XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        setPropertyIfSupported(factory, XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-        factory.setXMLResolver((publicId, systemId, baseURI, namespace) -> null);
-        return factory;
-    }
+    private java.util.Optional<GpxPoint> parsePoint(Element trkpt) {
+        try {
+            double latitude = Double.parseDouble(trkpt.getAttribute("lat"));
+            double longitude = Double.parseDouble(trkpt.getAttribute("lon"));
+            if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+                return java.util.Optional.empty();
+            }
 
-    private void setPropertyIfSupported(XMLInputFactory factory, String propertyName, Object value) {
-        if (factory.isPropertySupported(propertyName)) {
-            factory.setProperty(propertyName, value);
+            Double elevation = optionalDouble(childText(trkpt, "ele"));
+            Instant time = optionalInstant(childText(trkpt, "time"));
+            return java.util.Optional.of(new GpxPoint(latitude, longitude, elevation, time));
+        } catch (NumberFormatException ex) {
+            return java.util.Optional.empty();
         }
     }
 
-    private ParsedTrackPoint readTrackPoint(XMLStreamReader reader) throws XMLStreamException {
-        Double latitude = parseCoordinate(reader.getAttributeValue(null, "lat"), -90.0, 90.0);
-        Double longitude = parseCoordinate(reader.getAttributeValue(null, "lon"), -180.0, 180.0);
-        Double elevationM = null;
-        Instant time = null;
-        int depth = 0;
-
-        while (reader.hasNext()) {
-            int event = reader.next();
-            if (event == XMLStreamConstants.START_ELEMENT) {
-                depth++;
-                if (depth == 1 && ELE.equals(reader.getLocalName())) {
-                    elevationM = parseElevation(reader.getElementText());
-                    depth--;
-                } else if (depth == 1 && TIME.equals(reader.getLocalName())) {
-                    time = parseTime(reader.getElementText());
-                    depth--;
-                }
-            } else if (event == XMLStreamConstants.END_ELEMENT) {
-                if (depth == 0 && TRKPT.equals(reader.getLocalName())) {
-                    break;
-                }
-                depth--;
+    private String childText(Element parent, String targetLocalName) {
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node node = children.item(i);
+            if (node instanceof Element child && targetLocalName.equals(localName(child))) {
+                return child.getTextContent();
             }
         }
-
-        boolean hasUsableCoordinates = latitude != null && longitude != null;
-        if (!hasUsableCoordinates || elevationM == null) {
-            return new ParsedTrackPoint(hasUsableCoordinates, null);
-        }
-
-        return new ParsedTrackPoint(true, new GpxTrackPoint(latitude, longitude, elevationM, time));
+        return null;
     }
 
-    private Double parseCoordinate(String rawValue, double min, double max) {
-        if (rawValue == null || rawValue.isBlank()) {
-            return null;
-        }
-
-        try {
-            double value = Double.parseDouble(rawValue.trim());
-            if (!Double.isFinite(value) || value < min || value > max) {
-                return null;
-            }
-            return value;
-        } catch (NumberFormatException ex) {
-            return null;
-        }
+    private String localName(Element element) {
+        String localName = element.getLocalName();
+        return localName != null ? localName : element.getNodeName();
     }
 
-    private Double parseElevation(String rawValue) {
-        if (rawValue == null || rawValue.isBlank()) {
+    private Double optionalDouble(String value) {
+        if (value == null || value.isBlank()) {
             return null;
         }
-
-        try {
-            double elevation = Double.parseDouble(rawValue.trim());
-            return Double.isFinite(elevation) ? elevation : null;
-        } catch (NumberFormatException ex) {
-            return null;
-        }
+        return Double.parseDouble(value.trim());
     }
 
-    private Instant parseTime(String rawValue) {
-        if (rawValue == null || rawValue.isBlank()) {
+    private Instant optionalInstant(String value) {
+        if (value == null || value.isBlank()) {
             return null;
         }
-
         try {
-            return Instant.parse(rawValue.trim());
+            return Instant.parse(value.trim());
         } catch (DateTimeParseException ex) {
             return null;
         }
-    }
-
-    public record GpxTrackPoint(double latitude, double longitude, double elevationM, Instant time) {
-    }
-
-    private record ParsedTrackPoint(boolean hasUsableCoordinates, GpxTrackPoint trackPoint) {
     }
 }

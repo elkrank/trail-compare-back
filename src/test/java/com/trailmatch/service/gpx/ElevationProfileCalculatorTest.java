@@ -1,57 +1,84 @@
 package com.trailmatch.service.gpx;
 
-import com.trailmatch.dto.ElevationProfilePointDto;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.within;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ElevationProfileCalculatorTest {
     private final ElevationProfileCalculator calculator = new ElevationProfileCalculator();
 
     @Test
-    void distanceKmBetweenUsesHaversineFormulaForKnownPoints() {
-        GpxPoint paris = new GpxPoint(48.8566, 2.3522, 35.0);
-        GpxPoint london = new GpxPoint(51.5074, -0.1278, 11.0);
+    void calculatesCumulativeHaversineDistance() {
+        ElevationProfile profile = calculator.calculate(new GpxTrack(List.of(
+                point(0.0, 0.0, 100.0),
+                point(0.0, 1.0, 100.0),
+                point(0.0, 2.0, 100.0)
+        )));
 
-        double distanceKm = calculator.distanceKmBetween(paris, london);
-
-        assertThat(distanceKm).isCloseTo(343.56, within(2.0));
+        assertEquals(222.39, profile.distanceKm(), 0.2);
+        assertEquals(111.19, profile.points().get(1).cumulativeDistanceKm(), 0.2);
+        assertEquals(profile.distanceKm(), profile.points().getLast().cumulativeDistanceKm());
     }
 
     @Test
-    void computeBuildsProfileAndIgnoresSmallElevationNoise() {
-        List<GpxPoint> points = List.of(
-                new GpxPoint(45.0, 6.0, 100.0),
-                new GpxPoint(45.0, 6.01, 102.9),
-                new GpxPoint(45.01, 6.01, 106.0),
-                new GpxPoint(45.01, 6.02, 101.0)
-        );
+    void calculatesPositiveElevationGainWithThreeMeterNoiseThreshold() {
+        ElevationProfile profile = calculator.calculate(new GpxTrack(List.of(
+                point(45.0, 6.0, 100.0),
+                point(45.0, 6.001, 102.0),
+                point(45.0, 6.002, 106.0),
+                point(45.0, 6.003, 109.0),
+                point(45.0, 6.004, 113.0)
+        )));
 
-        ComputedElevationProfile profile = calculator.compute(points);
-
-        assertThat(profile.originalPointsCount()).isEqualTo(4);
-        assertThat(profile.distanceKm()).isEqualTo(2.68);
-        assertThat(profile.elevationGainM()).isEqualTo(3);
-        assertThat(profile.elevationLossM()).isEqualTo(5);
-        assertThat(profile.minElevationM()).isEqualTo(100);
-        assertThat(profile.maxElevationM()).isEqualTo(106);
-        assertThat(profile.points()).extracting(ElevationProfilePointDto::distanceKm).containsExactly(0.0, 0.786, 1.898, 2.684);
-        assertThat(profile.points()).extracting(ElevationProfilePointDto::elevationM).containsExactly(100, 103, 106, 101);
+        assertEquals(8.0, profile.elevationGainM());
     }
 
     @Test
-    void computeReturnsEmptyProfileForEmptyInput() {
-        ComputedElevationProfile profile = calculator.compute(List.of());
+    void calculatesNegativeElevationLossWithThreeMeterNoiseThreshold() {
+        ElevationProfile profile = calculator.calculate(new GpxTrack(List.of(
+                point(45.0, 6.0, 120.0),
+                point(45.0, 6.001, 118.0),
+                point(45.0, 6.002, 114.0),
+                point(45.0, 6.003, 111.0),
+                point(45.0, 6.004, 106.0)
+        )));
 
-        assertThat(profile.distanceKm()).isZero();
-        assertThat(profile.elevationGainM()).isZero();
-        assertThat(profile.elevationLossM()).isZero();
-        assertThat(profile.minElevationM()).isZero();
-        assertThat(profile.maxElevationM()).isZero();
-        assertThat(profile.points()).isEmpty();
-        assertThat(profile.originalPointsCount()).isZero();
+        assertEquals(9.0, profile.elevationLossM());
+    }
+
+    @Test
+    void calculatesMinimumAndMaximumElevation() {
+        ElevationProfile profile = calculator.calculate(new GpxTrack(List.of(
+                point(45.0, 6.0, 120.0),
+                point(45.0, 6.001, 95.0),
+                point(45.0, 6.002, 130.0)
+        )));
+
+        assertEquals(95.0, profile.minElevationM());
+        assertEquals(130.0, profile.maxElevationM());
+    }
+
+    @Test
+    void downsamplesGeneratedPointsAndKeepsFirstAndLastPoint() {
+        List<GpxPoint> points = new ArrayList<>();
+        for (int i = 0; i < 101; i++) {
+            points.add(point(45.0, 6.0 + i * 0.001, 100.0 + i));
+        }
+
+        ElevationProfile profile = calculator.calculate(new GpxTrack(points), 10);
+
+        assertEquals(10, profile.points().size());
+        assertEquals(0.0, profile.points().getFirst().cumulativeDistanceKm());
+        assertEquals(100.0, profile.points().getFirst().elevationM());
+        assertEquals(calculator.calculate(new GpxTrack(points)).distanceKm(), profile.points().getLast().cumulativeDistanceKm());
+        assertEquals(200.0, profile.points().getLast().elevationM());
+    }
+
+    private GpxPoint point(double latitude, double longitude, Double elevationM) {
+        return new GpxPoint(latitude, longitude, elevationM, Instant.parse("2026-05-08T08:00:00Z"));
     }
 }
