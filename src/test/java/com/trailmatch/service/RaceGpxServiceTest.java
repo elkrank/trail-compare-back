@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class RaceGpxServiceTest {
@@ -80,6 +81,8 @@ class RaceGpxServiceTest {
         assertEquals(1543, race.getMaxElevationM());
         assertEquals("trace.gpx", race.getGpxFileName());
         assertNotNull(race.getGpxImportedAt());
+        verify(elevationProfileCalculator).calculate(track, 500);
+        verifyNoMoreInteractions(elevationProfileCalculator);
         verify(raceRepository).save(race);
         verify(pointRepository).deleteByRaceId(42L);
         verify(pointRepository).flush();

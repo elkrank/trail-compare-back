@@ -78,6 +78,23 @@ class ElevationProfileCalculatorTest {
         assertEquals(200.0, profile.points().getLast().elevationM());
     }
 
+    @Test
+    void calculatesMetricsFromOriginalPointsBeforeDownsampling() {
+        ElevationProfile profile = calculator.calculate(new GpxTrack(List.of(
+                point(45.0, 6.000, 100.0),
+                point(45.0, 6.001, 160.0),
+                point(45.0, 6.002, 90.0),
+                point(45.0, 6.003, 150.0),
+                point(45.0, 6.004, 110.0)
+        )), 3);
+
+        assertEquals(3, profile.points().size());
+        assertEquals(120.0, profile.elevationGainM());
+        assertEquals(110.0, profile.elevationLossM());
+        assertEquals(90.0, profile.minElevationM());
+        assertEquals(160.0, profile.maxElevationM());
+    }
+
     private GpxPoint point(double latitude, double longitude, Double elevationM) {
         return new GpxPoint(latitude, longitude, elevationM, Instant.parse("2026-05-08T08:00:00Z"));
     }
