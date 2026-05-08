@@ -27,16 +27,6 @@ public class RaceElevationProfileService {
             throw new ApiException(404, "elevation_profile_not_found");
         }
 
-        Integer minElevationM = profilePoints.stream()
-                .map(RaceElevationProfilePoint::getElevationM)
-                .min(Integer::compareTo)
-                .orElse(null);
-        Integer maxElevationM = profilePoints.stream()
-                .map(RaceElevationProfilePoint::getElevationM)
-                .max(Integer::compareTo)
-                .orElse(null);
-        Integer elevationLossM = calculateElevationLoss(profilePoints);
-
         List<ElevationProfilePointResponse> points = profilePoints.stream()
                 .map(point -> new ElevationProfilePointResponse(
                         point.getPointIndex(),
@@ -48,21 +38,9 @@ public class RaceElevationProfileService {
                 race.getId(),
                 race.getDistanceKm(),
                 race.getElevationGainM(),
-                elevationLossM,
-                minElevationM,
-                maxElevationM,
+                race.getElevationLossM(),
+                race.getMinElevationM(),
+                race.getMaxElevationM(),
                 points);
-    }
-
-    private Integer calculateElevationLoss(List<RaceElevationProfilePoint> profilePoints) {
-        int loss = 0;
-        for (int i = 1; i < profilePoints.size(); i++) {
-            int previousElevation = profilePoints.get(i - 1).getElevationM();
-            int currentElevation = profilePoints.get(i).getElevationM();
-            if (currentElevation < previousElevation) {
-                loss += previousElevation - currentElevation;
-            }
-        }
-        return loss;
     }
 }

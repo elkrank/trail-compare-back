@@ -5,11 +5,9 @@ import com.trailmatch.exception.ApiException;
 import com.trailmatch.security.JwtAuthFilter;
 import com.trailmatch.security.JwtService;
 import com.trailmatch.security.LoginRateLimitFilter;
+import com.trailmatch.service.RaceGpxService;
 import com.trailmatch.service.RaceService;
 import com.trailmatch.service.gpx.ElevationProfile;
-import com.trailmatch.service.gpx.ElevationProfileCalculator;
-import com.trailmatch.service.gpx.GpxParser;
-import com.trailmatch.service.gpx.GpxTrack;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -23,6 +21,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,14 +35,13 @@ class AdminRaceControllerIT {
     @Autowired MockMvc mockMvc;
 
     @MockBean RaceService raceService;
-    @MockBean GpxParser gpxParser;
-    @MockBean ElevationProfileCalculator elevationProfileCalculator;
+    @MockBean RaceGpxService raceGpxService;
     @MockBean JwtService jwtService;
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void uploadGpxOnUnknownRaceReturnsRaceNotFound() throws Exception {
-        doThrow(new ApiException(404, "race_not_found")).when(raceService).ensureExists(404L);
+        doThrow(new ApiException(404, "race_not_found")).when(raceGpxService).upload(eq(404L), any());
 
         mockMvc.perform(multipart("/api/admin/races/{id}/gpx", 404L).file(gpxFile()))
                 .andExpect(status().isNotFound())
@@ -53,6 +51,8 @@ class AdminRaceControllerIT {
     @Test
     @WithMockUser(roles = "ADMIN")
     void uploadWithoutFileReturnsBadRequest() throws Exception {
+        doThrow(new ApiException(400, "gpx_file_required")).when(raceGpxService).upload(eq(1L), isNull());
+
         mockMvc.perform(multipart("/api/admin/races/{id}/gpx", 1L))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("gpx_file_required"));
@@ -62,6 +62,7 @@ class AdminRaceControllerIT {
     @WithMockUser(roles = "ADMIN")
     void uploadNonGpxFileReturnsBadRequest() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "track.txt", "text/plain", "not a gpx".getBytes());
+        doThrow(new ApiException(400, "invalid_gpx_file_extension")).when(raceGpxService).upload(eq(1L), any());
 
         mockMvc.perform(multipart("/api/admin/races/{id}/gpx", 1L).file(file))
                 .andExpect(status().isBadRequest())
@@ -78,16 +79,14 @@ class AdminRaceControllerIT {
     @Test
     @WithMockUser(roles = "ADMIN")
     void uploadGpxWithAdminRoleIsAccepted() throws Exception {
-        GpxTrack track = new GpxTrack(List.of());
         ElevationProfile profile = new ElevationProfile(0.0, 0.0, 0.0, null, null, List.of());
-        when(gpxParser.parse(any())).thenReturn(track);
-        when(elevationProfileCalculator.calculate(eq(track))).thenReturn(profile);
+        when(raceGpxService.upload(eq(1L), any())).thenReturn(profile);
 
         mockMvc.perform(multipart("/api/admin/races/{id}/gpx", 1L).file(gpxFile()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.distanceKm").value(0.0));
 
-        verify(raceService).ensureExists(1L);
+        verify(raceGpxService).upload(eq(1L), any());
     }
 
     private MockMultipartFile gpxFile() {
