@@ -9,6 +9,7 @@ import com.trailmatch.repository.RaceRepository;
 import com.trailmatch.service.gpx.ElevationProfile;
 import com.trailmatch.service.gpx.ElevationProfileCalculator;
 import com.trailmatch.service.gpx.GpxParser;
+import com.trailmatch.service.gpx.GpxTrack;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class RaceGpxService {
+    static final long MAX_GPX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
     private static final int MAX_PROFILE_POINTS = 500;
 
     private final RaceRepository raceRepository;
@@ -34,8 +36,14 @@ public class RaceGpxService {
         Race race = raceRepository.findById(raceId)
                 .orElseThrow(() -> new ApiException(404, "race_not_found"));
 
-        if (file == null || file.isEmpty()) {
+        if (file == null) {
             throw new ApiException(400, "gpx_file_required");
+        }
+        if (file.isEmpty()) {
+            throw new ApiException(400, "gpx_file_empty");
+        }
+        if (file.getSize() > MAX_GPX_FILE_SIZE_BYTES) {
+            throw new ApiException(413, "gpx_file_too_large");
         }
 
         String filename = file.getOriginalFilename();
@@ -52,9 +60,21 @@ public class RaceGpxService {
 
     private ElevationProfile parseProfile(MultipartFile file) {
         try {
-            return elevationProfileCalculator.calculate(gpxParser.parse(file.getInputStream()), MAX_PROFILE_POINTS);
+            GpxTrack track = gpxParser.parse(file.getInputStream());
+            validateParsedTrack(track);
+            return elevationProfileCalculator.calculate(track, MAX_PROFILE_POINTS);
         } catch (IOException ex) {
             throw new ApiException(400, "invalid_gpx");
+        }
+    }
+
+    private void validateParsedTrack(GpxTrack track) {
+        if (track.points().isEmpty()) {
+            throw new ApiException(400, "gpx_no_usable_point");
+        }
+        boolean hasElevationData = track.points().stream().anyMatch(point -> point.elevationM() != null);
+        if (!hasElevationData) {
+            throw new ApiException(400, "gpx_no_elevation_data");
         }
     }
 

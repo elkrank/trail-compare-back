@@ -12,11 +12,14 @@ import com.trailmatch.service.gpx.ElevationProfile;
 import com.trailmatch.service.gpx.ElevationProfileCalculator;
 import com.trailmatch.service.gpx.ElevationProfilePoint;
 import com.trailmatch.service.gpx.GpxParser;
+import com.trailmatch.service.gpx.GpxPoint;
 import com.trailmatch.service.gpx.GpxTrack;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -43,7 +46,10 @@ class RaceGpxServiceTest {
     @Test
     void uploadPersistsRaceSummaryAndReplacesDownsampledProfilePoints() {
         Race race = race();
-        GpxTrack track = new GpxTrack(List.of());
+        GpxTrack track = new GpxTrack(List.of(
+                new GpxPoint(45.0, 6.0, 987.6, null),
+                new GpxPoint(45.1, 6.1, 1543.2, null)
+        ));
         ElevationProfile profile = new ElevationProfile(
                 12.34,
                 456.7,
@@ -112,7 +118,32 @@ class RaceGpxServiceTest {
         ApiException exception = assertThrows(ApiException.class, () -> service.upload(42L, file));
 
         assertEquals(400, exception.status);
+        assertEquals("gpx_file_empty", exception.getMessage());
+        verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
+    }
+
+    @Test
+    void uploadFailsWhenFileIsNull() {
+        when(raceRepository.findById(42L)).thenReturn(Optional.of(race()));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.upload(42L, null));
+
+        assertEquals(400, exception.status);
         assertEquals("gpx_file_required", exception.getMessage());
+        verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
+    }
+
+    @Test
+    void uploadFailsWhenFileIsTooLarge() {
+        when(raceRepository.findById(42L)).thenReturn(Optional.of(race()));
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getSize()).thenReturn(RaceGpxService.MAX_GPX_FILE_SIZE_BYTES + 1);
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.upload(42L, file));
+
+        assertEquals(413, exception.status);
+        assertEquals("gpx_file_too_large", exception.getMessage());
         verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
     }
 
@@ -125,6 +156,53 @@ class RaceGpxServiceTest {
 
         assertEquals(400, exception.status);
         assertEquals("invalid_gpx_file_extension", exception.getMessage());
+        verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
+    }
+
+    @Test
+    void uploadFailsWhenParsedTrackHasNoUsablePoint() {
+        when(raceRepository.findById(42L)).thenReturn(Optional.of(race()));
+        when(gpxParser.parse(any())).thenReturn(new GpxTrack(List.of()));
+        MockMultipartFile file = new MockMultipartFile("file", "trace.gpx", "application/gpx+xml", "<gpx></gpx>".getBytes(StandardCharsets.UTF_8));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.upload(42L, file));
+
+        assertEquals(400, exception.status);
+        assertEquals("gpx_no_usable_point", exception.getMessage());
+        verify(gpxParser).parse(any());
+        verifyNoInteractions(pointRepository, elevationProfileCalculator);
+    }
+
+    @Test
+    void uploadFailsWhenParsedTrackHasNoElevationData() {
+        when(raceRepository.findById(42L)).thenReturn(Optional.of(race()));
+        when(gpxParser.parse(any())).thenReturn(new GpxTrack(List.of(
+                new GpxPoint(45.0, 6.0, null, null),
+                new GpxPoint(45.1, 6.1, null, null)
+        )));
+        MockMultipartFile file = new MockMultipartFile("file", "trace.gpx", "application/gpx+xml", "<gpx></gpx>".getBytes(StandardCharsets.UTF_8));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.upload(42L, file));
+
+        assertEquals(400, exception.status);
+        assertEquals("gpx_no_elevation_data", exception.getMessage());
+        verify(gpxParser).parse(any());
+        verifyNoInteractions(pointRepository, elevationProfileCalculator);
+    }
+
+    @Test
+    void uploadWrapsFileStreamAccessIOExceptionAsInvalidGpx() throws IOException {
+        when(raceRepository.findById(42L)).thenReturn(Optional.of(race()));
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getSize()).thenReturn(123L);
+        when(file.getOriginalFilename()).thenReturn("trace.gpx");
+        when(file.getInputStream()).thenThrow(new IOException("stream failure"));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.upload(42L, file));
+
+        assertEquals(400, exception.status);
+        assertEquals("invalid_gpx", exception.getMessage());
         verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
     }
 
