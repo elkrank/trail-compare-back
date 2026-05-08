@@ -63,10 +63,13 @@ class RaceGpxServiceTest {
         RaceGpxUploadResponse response = service.upload(42L, file);
 
         assertEquals(42L, response.raceId());
-        assertEquals("trace.gpx", response.filename());
-        assertEquals("application/gpx+xml", response.contentType());
-        assertEquals(file.getSize(), response.sizeBytes());
-        assertEquals("uploaded", response.status());
+        assertEquals("trace.gpx", response.fileName());
+        assertEquals(3, response.pointsCount());
+        assertEquals(12.34, response.distanceKm());
+        assertEquals(457, response.elevationGainM());
+        assertEquals(123, response.elevationLossM());
+        assertEquals(988, response.minElevationM());
+        assertEquals(1543, response.maxElevationM());
         assertEquals(12.34, race.getDistanceKm());
         assertEquals(457, race.getElevationGainM());
         assertEquals(123, race.getElevationLossM());

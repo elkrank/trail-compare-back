@@ -44,10 +44,18 @@ public class RaceGpxService {
         }
 
         ElevationProfile profile = parseProfile(file);
-        persistRaceSummary(race, filename, profile);
-        replaceProfilePoints(race, profile);
+        Race savedRace = persistRaceSummary(race, filename, profile);
+        int pointsCount = replaceProfilePoints(savedRace, profile);
 
-        return new RaceGpxUploadResponse(race.getId(), filename, file.getContentType(), file.getSize(), "uploaded");
+        return new RaceGpxUploadResponse(
+                savedRace.getId(),
+                savedRace.getGpxFileName(),
+                pointsCount,
+                savedRace.getDistanceKm(),
+                savedRace.getElevationGainM(),
+                savedRace.getElevationLossM(),
+                savedRace.getMinElevationM(),
+                savedRace.getMaxElevationM());
     }
 
     private ElevationProfile parseProfile(MultipartFile file) {
@@ -58,7 +66,7 @@ public class RaceGpxService {
         }
     }
 
-    private void persistRaceSummary(Race race, String filename, ElevationProfile profile) {
+    private Race persistRaceSummary(Race race, String filename, ElevationProfile profile) {
         race.setDistanceKm(profile.distanceKm());
         race.setElevationGainM(roundNullable(profile.elevationGainM()));
         race.setElevationLossM(roundNullable(profile.elevationLossM()));
@@ -66,10 +74,11 @@ public class RaceGpxService {
         race.setMaxElevationM(roundNullable(profile.maxElevationM()));
         race.setGpxFileName(filename);
         race.setGpxImportedAt(Instant.now());
-        raceRepository.save(race);
+        Race savedRace = raceRepository.save(race);
+        return savedRace == null ? race : savedRace;
     }
 
-    private void replaceProfilePoints(Race race, ElevationProfile profile) {
+    private int replaceProfilePoints(Race race, ElevationProfile profile) {
         pointRepository.deleteByRaceId(race.getId());
 
         List<RaceElevationProfilePoint> points = new ArrayList<>();
@@ -86,6 +95,7 @@ public class RaceGpxService {
                     .build());
         }
         pointRepository.saveAll(points);
+        return points.size();
     }
 
     private Integer roundNullable(Double value) {
