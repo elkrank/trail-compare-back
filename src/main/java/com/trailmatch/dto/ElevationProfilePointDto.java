@@ -1,8 +1,7 @@
 package com.trailmatch.dto;
 
-import java.io.Serializable;
-
-public record ElevationProfilePointDto(
-        Double distanceKm,
-        Integer elevationM
-) implements Serializable {}
+/**
+ * Point du profil altimétrique exposant l'altitude à une distance cumulée donnée.
+ */
+public record ElevationProfilePointDto(double distanceKm, int elevationM) {
+}
