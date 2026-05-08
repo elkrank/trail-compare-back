@@ -1,8 +1,10 @@
 package com.trailmatch.controller;
 
+import com.trailmatch.dto.RaceElevationProfileResponse;
 import com.trailmatch.dto.RaceResponse;
 import com.trailmatch.entity.TechnicalityLevel;
 import com.trailmatch.entity.TerrainType;
+import com.trailmatch.service.RaceElevationProfileService;
 import com.trailmatch.service.RaceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController @RequestMapping("/api/races") @RequiredArgsConstructor
 public class RaceController {
     private final RaceService service;
+    private final RaceElevationProfileService elevationProfileService;
     @GetMapping
     public Page<RaceResponse> all(@RequestParam(required = false) String search, @RequestParam(required = false) String region,
                                   @RequestParam(required = false) Integer month, @RequestParam(required = false) TerrainType terrainType,
@@ -22,4 +25,5 @@ public class RaceController {
         return service.findAll(search, region, month, terrainType, technicalityLevel, minDistanceKm, maxDistanceKm, minElevationGainM, maxElevationGainM, page, size, sort);
     }
     @GetMapping("/{id}") public RaceResponse one(@PathVariable Long id){ return service.findById(id); }
+    @GetMapping("/{raceId}/elevation-profile") public RaceElevationProfileResponse elevationProfile(@PathVariable Long raceId){ return elevationProfileService.findByRaceId(raceId); }
 }
