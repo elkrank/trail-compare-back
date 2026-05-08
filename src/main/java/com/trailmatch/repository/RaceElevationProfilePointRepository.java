@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface RaceElevationProfilePointRepository extends JpaRepository<RaceElevationProfilePoint, Long> {
     List<RaceElevationProfilePoint> findByRaceIdOrderByPointIndexAsc(Long raceId);
+
+    void deleteByRaceId(Long raceId);
 }
