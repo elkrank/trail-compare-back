@@ -71,6 +71,7 @@ public class RaceGpxService {
 
     private void replaceProfilePoints(Race race, ElevationProfile profile) {
         pointRepository.deleteByRaceId(race.getId());
+        pointRepository.flush();
 
         List<RaceElevationProfilePoint> points = new ArrayList<>();
         int pointIndex = 0;
