@@ -37,11 +37,11 @@ class RaceElevationProfileServiceTest {
         RaceElevationProfileResponse response = service.findByRaceId(1L);
 
         assertEquals(1L, response.raceId());
-        assertEquals(20.0, response.distanceKm());
-        assertEquals(700, response.elevationGainM());
-        assertEquals(150, response.elevationLossM());
-        assertEquals(1000, response.minElevationM());
-        assertEquals(1500, response.maxElevationM());
+        assertEquals(21.5, response.distanceKm());
+        assertEquals(777, response.elevationGainM());
+        assertEquals(155, response.elevationLossM());
+        assertEquals(990, response.minElevationM());
+        assertEquals(1510, response.maxElevationM());
         assertEquals(4, response.points().size());
         assertEquals(2, response.points().get(2).pointIndex());
         assertEquals(10.0, response.points().get(2).distanceKm());
@@ -77,11 +77,11 @@ class RaceElevationProfileServiceTest {
                 .location("Chamonix")
                 .region("Auvergne-Rhône-Alpes")
                 .date(LocalDate.now())
-                .distanceKm(20.0)
-                .elevationGainM(700)
-                .elevationLossM(150)
-                .minElevationM(1000)
-                .maxElevationM(1500)
+                .distanceKm(21.5)
+                .elevationGainM(777)
+                .elevationLossM(155)
+                .minElevationM(990)
+                .maxElevationM(1510)
                 .terrainType(TerrainType.MOUNTAIN)
                 .technicalityLevel(TechnicalityLevel.MODERATE)
                 .cutoffTimeMinutes(300)

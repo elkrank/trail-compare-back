@@ -23,7 +23,7 @@ public class RaceElevationProfileService {
                 .orElseThrow(() -> new ApiException(404, "race_not_found"));
 
         List<RaceElevationProfilePoint> profilePoints = pointRepository.findByRaceIdOrderByPointIndexAsc(raceId);
-        if (profilePoints.isEmpty()) {
+        if (!hasImportedProfile(profilePoints)) {
             throw new ApiException(404, "elevation_profile_not_found");
         }
 
@@ -42,5 +42,9 @@ public class RaceElevationProfileService {
                 race.getMinElevationM(),
                 race.getMaxElevationM(),
                 points);
+    }
+
+    private boolean hasImportedProfile(List<RaceElevationProfilePoint> profilePoints) {
+        return !profilePoints.isEmpty();
     }
 }

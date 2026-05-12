@@ -16,7 +16,18 @@ public class ElevationProfileCalculator {
     }
 
     public ElevationProfile calculate(GpxTrack track, int maxPoints) {
-        List<GpxPoint> points = track.points();
+        CalculatedTrack calculatedTrack = calculateTrackMetrics(track.points());
+
+        return new ElevationProfile(
+                calculatedTrack.distanceKm(),
+                calculatedTrack.elevationGainM(),
+                calculatedTrack.elevationLossM(),
+                calculatedTrack.minElevationM(),
+                calculatedTrack.maxElevationM(),
+                downsample(calculatedTrack.profilePoints(), maxPoints));
+    }
+
+    private CalculatedTrack calculateTrackMetrics(List<GpxPoint> points) {
         List<ElevationProfilePoint> profilePoints = new ArrayList<>();
         double cumulativeDistanceKm = 0.0;
         double elevationGainM = 0.0;
@@ -43,7 +54,7 @@ public class ElevationProfileCalculator {
         Double minElevationM = points.stream().map(GpxPoint::elevationM).filter(java.util.Objects::nonNull).min(Comparator.naturalOrder()).orElse(null);
         Double maxElevationM = points.stream().map(GpxPoint::elevationM).filter(java.util.Objects::nonNull).max(Comparator.naturalOrder()).orElse(null);
 
-        return new ElevationProfile(cumulativeDistanceKm, elevationGainM, elevationLossM, minElevationM, maxElevationM, downsample(profilePoints, maxPoints));
+        return new CalculatedTrack(cumulativeDistanceKm, elevationGainM, elevationLossM, minElevationM, maxElevationM, profilePoints);
     }
 
     private double haversineKm(double lat1, double lon1, double lat2, double lon2) {
@@ -52,6 +63,16 @@ public class ElevationProfileCalculator {
         double a = Math.pow(Math.sin(latDistance / 2), 2)
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.pow(Math.sin(lonDistance / 2), 2);
         return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    private record CalculatedTrack(
+            double distanceKm,
+            double elevationGainM,
+            double elevationLossM,
+            Double minElevationM,
+            Double maxElevationM,
+            List<ElevationProfilePoint> profilePoints
+    ) {
     }
 
     private List<ElevationProfilePoint> downsample(List<ElevationProfilePoint> points, int maxPoints) {
