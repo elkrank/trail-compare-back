@@ -74,8 +74,7 @@ public class RaceGpxService {
         race.setMaxElevationM(roundNullable(profile.maxElevationM()));
         race.setGpxFileName(filename);
         race.setGpxImportedAt(Instant.now());
-        Race savedRace = raceRepository.save(race);
-        return savedRace == null ? race : savedRace;
+        return raceRepository.save(race);
     }
 
     private int replaceProfilePoints(Race race, ElevationProfile profile) {
@@ -94,8 +93,12 @@ public class RaceGpxService {
                     .elevationM(roundNullable(profilePoint.elevationM()))
                     .build());
         }
-        pointRepository.saveAll(points);
-        return points.size();
+        Iterable<RaceElevationProfilePoint> savedPoints = pointRepository.saveAll(points);
+        int savedCount = 0;
+        for (RaceElevationProfilePoint ignored : savedPoints) {
+            savedCount++;
+        }
+        return savedCount;
     }
 
     private Integer roundNullable(Double value) {
