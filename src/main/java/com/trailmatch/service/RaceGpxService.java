@@ -52,10 +52,18 @@ public class RaceGpxService {
         }
 
         ElevationProfile profile = parseProfile(file);
-        persistRaceSummary(race, filename, profile);
-        replaceProfilePoints(race, profile);
+        Race savedRace = persistRaceSummary(race, filename, profile);
+        int pointsCount = replaceProfilePoints(savedRace, profile);
 
-        return new RaceGpxUploadResponse(race.getId(), filename, file.getContentType(), file.getSize(), "uploaded");
+        return new RaceGpxUploadResponse(
+                savedRace.getId(),
+                savedRace.getGpxFileName(),
+                pointsCount,
+                savedRace.getDistanceKm(),
+                savedRace.getElevationGainM(),
+                savedRace.getElevationLossM(),
+                savedRace.getMinElevationM(),
+                savedRace.getMaxElevationM());
     }
 
     private ElevationProfile parseProfile(MultipartFile file) {
@@ -68,17 +76,7 @@ public class RaceGpxService {
         }
     }
 
-    private void validateParsedTrack(GpxTrack track) {
-        if (track.points().isEmpty()) {
-            throw new ApiException(400, "gpx_no_usable_point");
-        }
-        boolean hasElevationData = track.points().stream().anyMatch(point -> point.elevationM() != null);
-        if (!hasElevationData) {
-            throw new ApiException(400, "gpx_no_elevation_data");
-        }
-    }
-
-    private void persistRaceSummary(Race race, String filename, ElevationProfile profile) {
+    private Race persistRaceSummary(Race race, String filename, ElevationProfile profile) {
         race.setDistanceKm(profile.distanceKm());
         race.setElevationGainM(roundNullable(profile.elevationGainM()));
         race.setElevationLossM(roundNullable(profile.elevationLossM()));
@@ -86,10 +84,10 @@ public class RaceGpxService {
         race.setMaxElevationM(roundNullable(profile.maxElevationM()));
         race.setGpxFileName(filename);
         race.setGpxImportedAt(Instant.now());
-        raceRepository.save(race);
+        return raceRepository.save(race);
     }
 
-    private void replaceProfilePoints(Race race, ElevationProfile profile) {
+    private int replaceProfilePoints(Race race, ElevationProfile profile) {
         pointRepository.deleteByRaceId(race.getId());
         pointRepository.flush();
 
@@ -106,7 +104,12 @@ public class RaceGpxService {
                     .elevationM(roundNullable(profilePoint.elevationM()))
                     .build());
         }
-        pointRepository.saveAll(points);
+        Iterable<RaceElevationProfilePoint> savedPoints = pointRepository.saveAll(points);
+        int savedCount = 0;
+        for (RaceElevationProfilePoint ignored : savedPoints) {
+            savedCount++;
+        }
+        return savedCount;
     }
 
     private Integer roundNullable(Double value) {

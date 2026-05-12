@@ -77,14 +77,19 @@ class AdminRaceControllerIT {
     @Test
     @WithMockUser(roles = "ADMIN")
     void uploadGpxWithAdminRoleIsAccepted() throws Exception {
-        RaceGpxUploadResponse response = new RaceGpxUploadResponse(1L, "track.gpx", "application/gpx+xml", 6L, "uploaded");
+        RaceGpxUploadResponse response = new RaceGpxUploadResponse(1L, "track.gpx", 2, 12.5, 450, 120, 800, 1250);
         when(raceGpxService.upload(eq(1L), any())).thenReturn(response);
 
         mockMvc.perform(multipart("/api/admin/races/{id}/gpx", 1L).file(gpxFile()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.raceId").value(1))
-                .andExpect(jsonPath("$.filename").value("track.gpx"))
-                .andExpect(jsonPath("$.status").value("uploaded"));
+                .andExpect(jsonPath("$.fileName").value("track.gpx"))
+                .andExpect(jsonPath("$.pointsCount").value(2))
+                .andExpect(jsonPath("$.distanceKm").value(12.5))
+                .andExpect(jsonPath("$.elevationGainM").value(450))
+                .andExpect(jsonPath("$.elevationLossM").value(120))
+                .andExpect(jsonPath("$.minElevationM").value(800))
+                .andExpect(jsonPath("$.maxElevationM").value(1250));
 
         verify(raceGpxService).upload(eq(1L), any());
     }

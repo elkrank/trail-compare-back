@@ -63,6 +63,8 @@ class RaceGpxServiceTest {
                         new ElevationProfilePoint(12.34, 1543.2)
                 ));
         when(raceRepository.findById(42L)).thenReturn(Optional.of(race));
+        when(raceRepository.save(race)).thenReturn(race);
+        when(pointRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(gpxParser.parse(any())).thenReturn(track);
         when(elevationProfileCalculator.calculate(eq(track), eq(500))).thenReturn(profile);
         MockMultipartFile file = new MockMultipartFile("file", "trace.gpx", "application/gpx+xml", "<gpx></gpx>".getBytes(StandardCharsets.UTF_8));
@@ -70,10 +72,13 @@ class RaceGpxServiceTest {
         RaceGpxUploadResponse response = service.upload(42L, file);
 
         assertEquals(42L, response.raceId());
-        assertEquals("trace.gpx", response.filename());
-        assertEquals("application/gpx+xml", response.contentType());
-        assertEquals(file.getSize(), response.sizeBytes());
-        assertEquals("uploaded", response.status());
+        assertEquals("trace.gpx", response.fileName());
+        assertEquals(3, response.pointsCount());
+        assertEquals(12.34, response.distanceKm());
+        assertEquals(457, response.elevationGainM());
+        assertEquals(123, response.elevationLossM());
+        assertEquals(988, response.minElevationM());
+        assertEquals(1543, response.maxElevationM());
         assertEquals(12.34, race.getDistanceKm());
         assertEquals(457, race.getElevationGainM());
         assertEquals(123, race.getElevationLossM());
