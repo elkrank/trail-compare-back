@@ -76,6 +76,16 @@ public class RaceGpxService {
         }
     }
 
+    private void validateParsedTrack(GpxTrack track) {
+        if (track.points().isEmpty()) {
+            throw new ApiException(400, "gpx_no_usable_point");
+        }
+        boolean hasElevation = track.points().stream().anyMatch(point -> point.elevationM() != null);
+        if (!hasElevation) {
+            throw new ApiException(400, "gpx_no_elevation_data");
+        }
+    }
+
     private Race persistRaceSummary(Race race, String filename, ElevationProfile profile) {
         race.setDistanceKm(profile.distanceKm());
         race.setElevationGainM(roundNullable(profile.elevationGainM()));
