@@ -1,12 +1,9 @@
 package com.trailmatch.service;
 
 import com.trailmatch.dto.ElevationProfilePointDto;
-import org.springframework.stereotype.Component;
-
 import java.util.ArrayList;
 import java.util.List;
 
-@Component
 public class ElevationProfileCalculator {
     public static final int DEFAULT_MAX_POINTS = 500;
 

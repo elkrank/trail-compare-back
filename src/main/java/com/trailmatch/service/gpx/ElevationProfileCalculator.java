@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-@Component
+@Component("gpxElevationProfileCalculator")
 public class ElevationProfileCalculator {
     private static final double EARTH_RADIUS_KM = 6_371.0088;
     private static final double DEFAULT_NOISE_THRESHOLD_M = 3.0;
