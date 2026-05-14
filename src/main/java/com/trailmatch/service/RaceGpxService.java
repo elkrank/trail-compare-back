@@ -3,8 +3,10 @@ package com.trailmatch.service;
 import com.trailmatch.dto.RaceGpxUploadResponse;
 import com.trailmatch.entity.Race;
 import com.trailmatch.entity.RaceElevationProfilePoint;
+import com.trailmatch.entity.RaceGpxFile;
 import com.trailmatch.exception.ApiException;
 import com.trailmatch.repository.RaceElevationProfilePointRepository;
+import com.trailmatch.repository.RaceGpxFileRepository;
 import com.trailmatch.repository.RaceRepository;
 import com.trailmatch.service.gpx.ElevationProfile;
 import com.trailmatch.service.gpx.ElevationProfileCalculator;
@@ -15,7 +17,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +33,7 @@ public class RaceGpxService {
 
     private final RaceRepository raceRepository;
     private final RaceElevationProfilePointRepository pointRepository;
+    private final RaceGpxFileRepository gpxFileRepository;
     private final GpxParser gpxParser;
     private final ElevationProfileCalculator elevationProfileCalculator;
 
@@ -38,6 +44,7 @@ public class RaceGpxService {
         return importForRace(race, file);
     }
 
+    @Transactional
     public RaceGpxUploadResponse importForRace(Race race, MultipartFile file) {
         if (file == null) {
             throw new ApiException(400, "gpx_file_required");
@@ -54,8 +61,10 @@ public class RaceGpxService {
             throw new ApiException(400, "invalid_gpx_file_extension");
         }
 
-        ElevationProfile profile = parseProfile(file);
+        byte[] content = readFileBytes(file);
+        ElevationProfile profile = parseProfile(content);
         Race savedRace = persistRaceSummary(race, filename, profile);
+        persistRawGpxFile(savedRace, file, filename, content);
         int pointsCount = replaceProfilePoints(savedRace, profile);
 
         return new RaceGpxUploadResponse(
@@ -69,14 +78,18 @@ public class RaceGpxService {
                 savedRace.getMaxElevationM());
     }
 
-    private ElevationProfile parseProfile(MultipartFile file) {
+    private byte[] readFileBytes(MultipartFile file) {
         try {
-            GpxTrack track = gpxParser.parse(file.getInputStream());
-            validateParsedTrack(track);
-            return elevationProfileCalculator.calculate(track, MAX_PROFILE_POINTS);
+            return file.getBytes();
         } catch (IOException ex) {
             throw new ApiException(400, "invalid_gpx");
         }
+    }
+
+    private ElevationProfile parseProfile(byte[] content) {
+        GpxTrack track = gpxParser.parse(new ByteArrayInputStream(content));
+        validateParsedTrack(track);
+        return elevationProfileCalculator.calculate(track, MAX_PROFILE_POINTS);
     }
 
     private void validateParsedTrack(GpxTrack track) {
@@ -98,6 +111,32 @@ public class RaceGpxService {
         race.setGpxFileName(filename);
         race.setGpxImportedAt(Instant.now());
         return raceRepository.save(race);
+    }
+
+    private void persistRawGpxFile(Race race, MultipartFile file, String filename, byte[] content) {
+        gpxFileRepository.save(RaceGpxFile.builder()
+                .raceId(race.getId())
+                .race(race)
+                .fileName(filename)
+                .contentType(file.getContentType())
+                .sizeBytes((long) content.length)
+                .sha256(sha256Hex(content))
+                .content(content)
+                .importedAt(race.getGpxImportedAt())
+                .build());
+    }
+
+    private String sha256Hex(byte[] content) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(content);
+            StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (byte value : digest) {
+                hex.append(String.format("%02x", value));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 algorithm is not available", ex);
+        }
     }
 
     private int replaceProfilePoints(Race race, ElevationProfile profile) {
