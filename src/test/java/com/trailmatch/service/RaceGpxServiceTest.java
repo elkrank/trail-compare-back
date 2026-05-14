@@ -127,6 +127,20 @@ class RaceGpxServiceTest {
     }
 
     @Test
+    void importForRacePropagatesInvalidGpxAndDoesNotPersistImportedData() {
+        Race race = race();
+        when(gpxParser.parse(any())).thenThrow(new ApiException(400, "invalid_gpx"));
+        MockMultipartFile file = new MockMultipartFile("file", "trace.gpx", "application/gpx+xml", "<gpx><trk>".getBytes(StandardCharsets.UTF_8));
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.importForRace(race, file));
+
+        assertEquals(400, exception.status);
+        assertEquals("invalid_gpx", exception.getMessage());
+        verify(gpxParser).parse(any());
+        verifyNoInteractions(pointRepository, gpxFileRepository, elevationProfileCalculator);
+    }
+
+    @Test
     void uploadFailsWhenRaceDoesNotExist() {
         when(raceRepository.findById(42L)).thenReturn(Optional.empty());
         MockMultipartFile file = new MockMultipartFile("file", "trace.gpx", "application/gpx+xml", "<gpx></gpx>".getBytes(StandardCharsets.UTF_8));

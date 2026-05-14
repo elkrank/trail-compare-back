@@ -33,8 +33,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -48,6 +50,24 @@ class AdminRaceControllerIT {
     @MockBean RaceGpxService raceGpxService;
     @MockBean JwtService jwtService;
 
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createJsonRaceWithoutGpxKeepsExistingCompatibility() throws Exception {
+        RaceResponse response = raceResponse(10L, false);
+        when(raceService.create(any(RaceRequest.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/admin/races")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(raceRequest())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(10))
+                .andExpect(jsonPath("$.name").value("Trail Test"))
+                .andExpect(jsonPath("$.hasGpx").value(false))
+                .andExpect(jsonPath("$.gpxFileName").doesNotExist())
+                .andExpect(jsonPath("$.gpxImportedAt").doesNotExist());
+
+        verify(raceService).create(any(RaceRequest.class));
+    }
 
     @Test
     @WithMockUser(roles = "ADMIN")
@@ -81,6 +101,47 @@ class AdminRaceControllerIT {
                 .andExpect(jsonPath("$.hasGpx").value(true));
 
         verify(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createMultipartRaceWithTooLargeGpxReturnsPayloadTooLarge() throws Exception {
+        doThrow(new ApiException(413, "gpx_file_too_large"))
+                .when(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
+
+        mockMvc.perform(multipart("/api/admin/races")
+                        .file(racePart())
+                        .file(new MockMultipartFile("gpx", "track.gpx", "application/gpx+xml", "too large".getBytes())))
+                .andExpect(status().is(413))
+                .andExpect(jsonPath("$.error").value("gpx_file_too_large"));
+
+        verify(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createMultipartRaceWithInvalidGpxExtensionReturnsBadRequest() throws Exception {
+        doThrow(new ApiException(400, "invalid_gpx_file_extension"))
+                .when(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
+
+        mockMvc.perform(multipart("/api/admin/races")
+                        .file(racePart())
+                        .file(new MockMultipartFile("gpx", "track.txt", "text/plain", "not gpx".getBytes())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_gpx_file_extension"));
+
+        verify(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void createMultipartRaceWithoutAdminRoleIsRejected() throws Exception {
+        mockMvc.perform(multipart("/api/admin/races")
+                        .file(racePart())
+                        .file(new MockMultipartFile("gpx", "track.gpx", "application/gpx+xml", "<gpx/>".getBytes())))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(raceService, raceGpxService);
     }
 
     @Test
