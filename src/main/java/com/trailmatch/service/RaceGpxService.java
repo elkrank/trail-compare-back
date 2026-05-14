@@ -35,7 +35,10 @@ public class RaceGpxService {
     public RaceGpxUploadResponse upload(Long raceId, MultipartFile file) {
         Race race = raceRepository.findById(raceId)
                 .orElseThrow(() -> new ApiException(404, "race_not_found"));
+        return importForRace(race, file);
+    }
 
+    public RaceGpxUploadResponse importForRace(Race race, MultipartFile file) {
         if (file == null) {
             throw new ApiException(400, "gpx_file_required");
         }

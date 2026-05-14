@@ -63,8 +63,8 @@ public class RaceService {
         if (gpx == null) {
             return mapper.toResponse(savedRace);
         }
-        raceGpxService.upload(savedRace.getId(), gpx);
-        return findById(savedRace.getId());
+        raceGpxService.importForRace(savedRace, gpx);
+        return mapper.toResponse(savedRace);
     }
     public RaceResponse update(Long id, RaceRequest req){ Race r = repo.findById(id).orElseThrow(() -> new ApiException(404, "race_not_found")); mapper.update(r, req); return mapper.toResponse(repo.save(r)); }
     public RaceResponse patch(Long id, Map<String, Object> patch){ Race r = repo.findById(id).orElseThrow(() -> new ApiException(404, "race_not_found")); if(patch.containsKey("priceEur")) r.setPriceEur(new java.math.BigDecimal(patch.get("priceEur").toString())); if(patch.containsKey("description")) r.setDescription(patch.get("description").toString()); return mapper.toResponse(repo.save(r)); }
