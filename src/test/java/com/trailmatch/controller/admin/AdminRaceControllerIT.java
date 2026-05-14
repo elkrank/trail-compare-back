@@ -1,7 +1,12 @@
 package com.trailmatch.controller.admin;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trailmatch.config.SecurityConfig;
 import com.trailmatch.dto.RaceGpxUploadResponse;
+import com.trailmatch.dto.RaceRequest;
+import com.trailmatch.dto.RaceResponse;
+import com.trailmatch.entity.TechnicalityLevel;
+import com.trailmatch.entity.TerrainType;
 import com.trailmatch.exception.ApiException;
 import com.trailmatch.security.JwtAuthFilter;
 import com.trailmatch.security.JwtService;
@@ -13,9 +18,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -31,10 +41,43 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, JwtAuthFilter.class, LoginRateLimitFilter.class})
 class AdminRaceControllerIT {
     @Autowired MockMvc mockMvc;
+    @Autowired ObjectMapper objectMapper;
 
     @MockBean RaceService raceService;
     @MockBean RaceGpxService raceGpxService;
     @MockBean JwtService jwtService;
+
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createMultipartRaceWithGpxDelegatesToRaceService() throws Exception {
+        RaceResponse response = raceResponse(1L);
+        when(raceService.createWithOptionalGpx(any(RaceRequest.class), any())).thenReturn(response);
+
+        mockMvc.perform(multipart("/api/admin/races")
+                        .file(racePart())
+                        .file(new MockMultipartFile("gpx", "track.gpx", "application/gpx+xml", "<gpx/>".getBytes())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.name").value("Trail Test"));
+
+        verify(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createMultipartRaceAcceptsFileAlias() throws Exception {
+        RaceResponse response = raceResponse(2L);
+        when(raceService.createWithOptionalGpx(any(RaceRequest.class), any())).thenReturn(response);
+
+        mockMvc.perform(multipart("/api/admin/races")
+                        .file(racePart())
+                        .file(new MockMultipartFile("file", "track.gpx", "application/gpx+xml", "<gpx/>".getBytes())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(2));
+
+        verify(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
+    }
 
     @Test
     @WithMockUser(roles = "ADMIN")
@@ -92,6 +135,64 @@ class AdminRaceControllerIT {
                 .andExpect(jsonPath("$.maxElevationM").value(1250));
 
         verify(raceGpxService).upload(eq(1L), any());
+    }
+
+
+    private MockMultipartFile racePart() throws Exception {
+        return new MockMultipartFile(
+                "race",
+                "race.json",
+                MediaType.APPLICATION_JSON_VALUE,
+                objectMapper.writeValueAsBytes(raceRequest()));
+    }
+
+    private RaceRequest raceRequest() {
+        return new RaceRequest(
+                "Trail Test",
+                "Annecy",
+                "Auvergne-Rhône-Alpes",
+                LocalDate.of(2026, 6, 1),
+                12.5,
+                450,
+                TerrainType.MOUNTAIN,
+                TechnicalityLevel.MODERATE,
+                180,
+                160,
+                150,
+                2,
+                BigDecimal.TEN,
+                "A scenic trail race",
+                List.of("trail"),
+                "https://example.com");
+    }
+
+    private RaceResponse raceResponse(Long id) {
+        RaceRequest req = raceRequest();
+        return new RaceResponse(
+                id,
+                req.name(),
+                req.location(),
+                req.region(),
+                req.date(),
+                req.distanceKm(),
+                req.elevationGainM(),
+                req.terrainType(),
+                req.technicalityLevel(),
+                req.cutoffTimeMinutes(),
+                req.lastFinisherTimeMinutes(),
+                req.medianFinisherTimeMinutes(),
+                req.aidStationsCount(),
+                req.priceEur(),
+                req.description(),
+                req.tags(),
+                req.sourceUrl(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     private MockMultipartFile gpxFile() {
