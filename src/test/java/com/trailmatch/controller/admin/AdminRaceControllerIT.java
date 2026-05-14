@@ -24,6 +24,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -51,7 +52,7 @@ class AdminRaceControllerIT {
     @Test
     @WithMockUser(roles = "ADMIN")
     void createMultipartRaceWithGpxDelegatesToRaceService() throws Exception {
-        RaceResponse response = raceResponse(1L);
+        RaceResponse response = raceResponse(1L, true);
         when(raceService.createWithOptionalGpx(any(RaceRequest.class), any())).thenReturn(response);
 
         mockMvc.perform(multipart("/api/admin/races")
@@ -59,7 +60,9 @@ class AdminRaceControllerIT {
                         .file(new MockMultipartFile("gpx", "track.gpx", "application/gpx+xml", "<gpx/>".getBytes())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.name").value("Trail Test"));
+                .andExpect(jsonPath("$.name").value("Trail Test"))
+                .andExpect(jsonPath("$.hasGpx").value(true))
+                .andExpect(jsonPath("$.gpxFileName").value("track.gpx"));
 
         verify(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
     }
@@ -67,14 +70,15 @@ class AdminRaceControllerIT {
     @Test
     @WithMockUser(roles = "ADMIN")
     void createMultipartRaceAcceptsFileAlias() throws Exception {
-        RaceResponse response = raceResponse(2L);
+        RaceResponse response = raceResponse(2L, true);
         when(raceService.createWithOptionalGpx(any(RaceRequest.class), any())).thenReturn(response);
 
         mockMvc.perform(multipart("/api/admin/races")
                         .file(racePart())
                         .file(new MockMultipartFile("file", "track.gpx", "application/gpx+xml", "<gpx/>".getBytes())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(2));
+                .andExpect(jsonPath("$.id").value(2))
+                .andExpect(jsonPath("$.hasGpx").value(true));
 
         verify(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
     }
@@ -167,6 +171,10 @@ class AdminRaceControllerIT {
     }
 
     private RaceResponse raceResponse(Long id) {
+        return raceResponse(id, false);
+    }
+
+    private RaceResponse raceResponse(Long id, boolean hasGpx) {
         RaceRequest req = raceRequest();
         return new RaceResponse(
                 id,
@@ -186,6 +194,9 @@ class AdminRaceControllerIT {
                 req.description(),
                 req.tags(),
                 req.sourceUrl(),
+                hasGpx,
+                hasGpx ? "track.gpx" : null,
+                hasGpx ? Instant.parse("2026-05-14T12:00:00Z") : null,
                 null,
                 null,
                 null,

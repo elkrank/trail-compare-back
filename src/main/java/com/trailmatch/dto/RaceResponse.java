@@ -12,6 +12,7 @@ public record RaceResponse(Long id, String name, String location, String region,
                            Integer elevationGainM, TerrainType terrainType, TechnicalityLevel technicalityLevel,
                            Integer cutoffTimeMinutes, Integer lastFinisherTimeMinutes, Integer medianFinisherTimeMinutes,
                            Integer aidStationsCount, BigDecimal priceEur, String description, List<String> tags,
-                           String sourceUrl, Instant createdAt, Instant updatedAt,
+                           String sourceUrl, Boolean hasGpx, String gpxFileName, Instant gpxImportedAt,
+                           Instant createdAt, Instant updatedAt,
                            Double elevationPerKm, Double cutoffPaceMinKm, Double lastFinisherPaceMinKm,
                            Double medianPaceMinKm, Integer difficultyScore) {}
