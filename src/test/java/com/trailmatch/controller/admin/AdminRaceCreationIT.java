@@ -74,6 +74,9 @@ class AdminRaceCreationIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.name").value("Trail API création"))
+                .andExpect(jsonPath("$.hasGpx").value(false))
+                .andExpect(jsonPath("$.gpxFileName").doesNotExist())
+                .andExpect(jsonPath("$.gpxImportedAt").doesNotExist())
                 .andExpect(jsonPath("$.elevationPerKm").value(closeTo(1350.0 / 24.5, 0.0001)));
 
         assertThat(raceRepository.findAll())
