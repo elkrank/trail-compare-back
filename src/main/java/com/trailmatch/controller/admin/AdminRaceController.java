@@ -17,7 +17,14 @@ import java.util.Map;
 public class AdminRaceController {
     private final RaceService service;
     private final RaceGpxService raceGpxService;
-    @PostMapping public RaceResponse create(@RequestBody @Valid RaceRequest req){ return service.create(req); }
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE) public RaceResponse create(@RequestBody @Valid RaceRequest req){ return service.create(req); }
+
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public RaceResponse createWithGpx(@RequestPart("race") @Valid RaceRequest req,
+                                      @RequestPart(value = "gpx", required = false) MultipartFile gpx,
+                                      @RequestPart(value = "file", required = false) MultipartFile file) {
+        return service.createWithOptionalGpx(req, gpx != null ? gpx : file);
+    }
     @PutMapping("/{id}") public RaceResponse put(@PathVariable Long id, @RequestBody @Valid RaceRequest req){ return service.update(id, req); }
     @PatchMapping("/{id}") public RaceResponse patch(@PathVariable Long id, @RequestBody Map<String,Object> patch){ return service.patch(id, patch); }
     @DeleteMapping("/{id}") public void delete(@PathVariable Long id){ service.delete(id); }

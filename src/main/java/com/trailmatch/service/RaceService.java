@@ -9,15 +9,17 @@ import com.trailmatch.exception.ApiException;
 import com.trailmatch.mapper.RaceMapper;
 import com.trailmatch.repository.RaceRepository;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 
 @Service @RequiredArgsConstructor
 public class RaceService {
-    private final RaceRepository repo; private final RaceMapper mapper;
+    private final RaceRepository repo; private final RaceMapper mapper; private final RaceGpxService raceGpxService;
     public Page<RaceResponse> findAll(String search, String region, Integer month, TerrainType terrainType, TechnicalityLevel technicalityLevel,
                                       Double minDistanceKm, Double maxDistanceKm, Integer minElevationGainM, Integer maxElevationGainM,
                                       int page, int size, String sort){
@@ -55,6 +57,15 @@ public class RaceService {
     public RaceResponse findById(Long id){ return mapper.toResponse(repo.findById(id).orElseThrow(() -> new ApiException(404, "race_not_found"))); }
     public void ensureExists(Long id){ repo.findById(id).orElseThrow(() -> new ApiException(404, "race_not_found")); }
     public RaceResponse create(RaceRequest req){ return mapper.toResponse(repo.save(mapper.toEntity(req))); }
+    @Transactional
+    public RaceResponse createWithOptionalGpx(RaceRequest req, MultipartFile gpx){
+        Race savedRace = repo.save(mapper.toEntity(req));
+        if (gpx == null) {
+            return mapper.toResponse(savedRace);
+        }
+        raceGpxService.upload(savedRace.getId(), gpx);
+        return findById(savedRace.getId());
+    }
     public RaceResponse update(Long id, RaceRequest req){ Race r = repo.findById(id).orElseThrow(() -> new ApiException(404, "race_not_found")); mapper.update(r, req); return mapper.toResponse(repo.save(r)); }
     public RaceResponse patch(Long id, Map<String, Object> patch){ Race r = repo.findById(id).orElseThrow(() -> new ApiException(404, "race_not_found")); if(patch.containsKey("priceEur")) r.setPriceEur(new java.math.BigDecimal(patch.get("priceEur").toString())); if(patch.containsKey("description")) r.setDescription(patch.get("description").toString()); return mapper.toResponse(repo.save(r)); }
     public void delete(Long id){ repo.deleteById(id); }
