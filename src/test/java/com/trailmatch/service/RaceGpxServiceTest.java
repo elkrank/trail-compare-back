@@ -3,10 +3,12 @@ package com.trailmatch.service;
 import com.trailmatch.dto.RaceGpxUploadResponse;
 import com.trailmatch.entity.Race;
 import com.trailmatch.entity.RaceElevationProfilePoint;
+import com.trailmatch.entity.RaceGpxFile;
 import com.trailmatch.entity.TechnicalityLevel;
 import com.trailmatch.entity.TerrainType;
 import com.trailmatch.exception.ApiException;
 import com.trailmatch.repository.RaceElevationProfilePointRepository;
+import com.trailmatch.repository.RaceGpxFileRepository;
 import com.trailmatch.repository.RaceRepository;
 import com.trailmatch.service.gpx.ElevationProfile;
 import com.trailmatch.service.gpx.ElevationProfileCalculator;
@@ -22,10 +24,13 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -40,9 +45,10 @@ import static org.mockito.Mockito.when;
 class RaceGpxServiceTest {
     private final RaceRepository raceRepository = mock(RaceRepository.class);
     private final RaceElevationProfilePointRepository pointRepository = mock(RaceElevationProfilePointRepository.class);
+    private final RaceGpxFileRepository gpxFileRepository = mock(RaceGpxFileRepository.class);
     private final GpxParser gpxParser = mock(GpxParser.class);
     private final ElevationProfileCalculator elevationProfileCalculator = mock(ElevationProfileCalculator.class);
-    private final RaceGpxService service = new RaceGpxService(raceRepository, pointRepository, gpxParser, elevationProfileCalculator);
+    private final RaceGpxService service = new RaceGpxService(raceRepository, pointRepository, gpxFileRepository, gpxParser, elevationProfileCalculator);
 
     @Test
     void uploadPersistsRaceSummaryAndReplacesDownsampledProfilePoints() {
@@ -67,7 +73,8 @@ class RaceGpxServiceTest {
         when(pointRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(gpxParser.parse(any())).thenReturn(track);
         when(elevationProfileCalculator.calculate(eq(track), eq(500))).thenReturn(profile);
-        MockMultipartFile file = new MockMultipartFile("file", "trace.gpx", "application/gpx+xml", "<gpx></gpx>".getBytes(StandardCharsets.UTF_8));
+        byte[] content = "<gpx></gpx>".getBytes(StandardCharsets.UTF_8);
+        MockMultipartFile file = new MockMultipartFile("file", "trace.gpx", "application/gpx+xml", content);
 
         RaceGpxUploadResponse response = service.upload(42L, file);
 
@@ -89,6 +96,19 @@ class RaceGpxServiceTest {
         verify(elevationProfileCalculator).calculate(track, 500);
         verifyNoMoreInteractions(elevationProfileCalculator);
         verify(raceRepository).save(race);
+
+        ArgumentCaptor<RaceGpxFile> rawFileCaptor = ArgumentCaptor.forClass(RaceGpxFile.class);
+        verify(gpxFileRepository).save(rawFileCaptor.capture());
+        RaceGpxFile rawFile = rawFileCaptor.getValue();
+        assertEquals(42L, rawFile.getRaceId());
+        assertEquals(race, rawFile.getRace());
+        assertEquals("trace.gpx", rawFile.getFileName());
+        assertEquals("application/gpx+xml", rawFile.getContentType());
+        assertEquals((long) content.length, rawFile.getSizeBytes());
+        assertEquals(sha256Hex(content), rawFile.getSha256());
+        assertArrayEquals(content, rawFile.getContent());
+        assertEquals(race.getGpxImportedAt(), rawFile.getImportedAt());
+
         verify(pointRepository).deleteByRaceId(42L);
         verify(pointRepository).flush();
 
@@ -115,7 +135,7 @@ class RaceGpxServiceTest {
 
         assertEquals(404, exception.status);
         assertEquals("race_not_found", exception.getMessage());
-        verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
+        verifyNoInteractions(pointRepository, gpxFileRepository, gpxParser, elevationProfileCalculator);
     }
 
     @Test
@@ -127,7 +147,7 @@ class RaceGpxServiceTest {
 
         assertEquals(400, exception.status);
         assertEquals("gpx_file_empty", exception.getMessage());
-        verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
+        verifyNoInteractions(pointRepository, gpxFileRepository, gpxParser, elevationProfileCalculator);
     }
 
     @Test
@@ -138,7 +158,7 @@ class RaceGpxServiceTest {
 
         assertEquals(400, exception.status);
         assertEquals("gpx_file_required", exception.getMessage());
-        verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
+        verifyNoInteractions(pointRepository, gpxFileRepository, gpxParser, elevationProfileCalculator);
     }
 
     @Test
@@ -152,7 +172,7 @@ class RaceGpxServiceTest {
 
         assertEquals(413, exception.status);
         assertEquals("gpx_file_too_large", exception.getMessage());
-        verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
+        verifyNoInteractions(pointRepository, gpxFileRepository, gpxParser, elevationProfileCalculator);
     }
 
     @Test
@@ -164,7 +184,7 @@ class RaceGpxServiceTest {
 
         assertEquals(400, exception.status);
         assertEquals("invalid_gpx_file_extension", exception.getMessage());
-        verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
+        verifyNoInteractions(pointRepository, gpxFileRepository, gpxParser, elevationProfileCalculator);
     }
 
     @Test
@@ -178,7 +198,7 @@ class RaceGpxServiceTest {
         assertEquals(400, exception.status);
         assertEquals("gpx_no_usable_point", exception.getMessage());
         verify(gpxParser).parse(any());
-        verifyNoInteractions(pointRepository, elevationProfileCalculator);
+        verifyNoInteractions(pointRepository, gpxFileRepository, elevationProfileCalculator);
     }
 
     @Test
@@ -195,23 +215,36 @@ class RaceGpxServiceTest {
         assertEquals(400, exception.status);
         assertEquals("gpx_no_elevation_data", exception.getMessage());
         verify(gpxParser).parse(any());
-        verifyNoInteractions(pointRepository, elevationProfileCalculator);
+        verifyNoInteractions(pointRepository, gpxFileRepository, elevationProfileCalculator);
     }
 
     @Test
-    void uploadWrapsFileStreamAccessIOExceptionAsInvalidGpx() throws IOException {
+    void uploadWrapsFileBytesAccessIOExceptionAsInvalidGpx() throws IOException {
         when(raceRepository.findById(42L)).thenReturn(Optional.of(race()));
         MultipartFile file = mock(MultipartFile.class);
         when(file.isEmpty()).thenReturn(false);
         when(file.getSize()).thenReturn(123L);
         when(file.getOriginalFilename()).thenReturn("trace.gpx");
-        when(file.getInputStream()).thenThrow(new IOException("stream failure"));
+        when(file.getBytes()).thenThrow(new IOException("bytes failure"));
 
         ApiException exception = assertThrows(ApiException.class, () -> service.upload(42L, file));
 
         assertEquals(400, exception.status);
         assertEquals("invalid_gpx", exception.getMessage());
-        verifyNoInteractions(pointRepository, gpxParser, elevationProfileCalculator);
+        verifyNoInteractions(pointRepository, gpxFileRepository, gpxParser, elevationProfileCalculator);
+    }
+
+    private String sha256Hex(byte[] content) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(content);
+            StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (byte value : digest) {
+                hex.append(String.format("%02x", value));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     private Race race() {
