@@ -30,7 +30,9 @@ public class AdminRaceController {
     @DeleteMapping("/{id}") public void delete(@PathVariable Long id){ service.delete(id); }
 
     @PostMapping(path = "/{id}/gpx", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public RaceGpxUploadResponse uploadGpx(@PathVariable("id") Long raceId, @RequestParam(value = "file", required = false) MultipartFile file) {
-        return raceGpxService.upload(raceId, file);
+    public RaceGpxUploadResponse uploadGpx(@PathVariable("id") Long raceId,
+                                           @RequestPart(value = "gpx", required = false) MultipartFile gpx,
+                                           @RequestPart(value = "file", required = false) MultipartFile file) {
+        return raceGpxService.upload(raceId, gpx != null ? gpx : file);
     }
 }
