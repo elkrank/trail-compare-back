@@ -28,10 +28,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -71,7 +73,7 @@ class AdminRaceControllerIT {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    void createMultipartRaceWithGpxDelegatesToRaceService() throws Exception {
+    void createMultipartRaceWithRaceAndGpxPartsDelegatesToRaceService() throws Exception {
         RaceResponse response = raceResponse(1L, true);
         when(raceService.createWithOptionalGpx(any(RaceRequest.class), any())).thenReturn(response);
 
@@ -84,23 +86,41 @@ class AdminRaceControllerIT {
                 .andExpect(jsonPath("$.hasGpx").value(true))
                 .andExpect(jsonPath("$.gpxFileName").value("track.gpx"));
 
-        verify(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
+        verify(raceService).createWithOptionalGpx(
+                any(RaceRequest.class),
+                argThat(file -> {
+                    assertEquals("gpx", file.getName());
+                    assertEquals("track.gpx", file.getOriginalFilename());
+                    return true;
+                }));
+    }
+
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createMultipartRaceRejectsWrongJsonPartName() throws Exception {
+        mockMvc.perform(multipart("/api/admin/races")
+                        .file(new MockMultipartFile(
+                                "payload",
+                                "race.json",
+                                MediaType.APPLICATION_JSON_VALUE,
+                                objectMapper.writeValueAsBytes(raceRequest())))
+                        .file(new MockMultipartFile("gpx", "track.gpx", "application/gpx+xml", "<gpx/>".getBytes())))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(raceService, raceGpxService);
     }
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    void createMultipartRaceAcceptsFileAlias() throws Exception {
-        RaceResponse response = raceResponse(2L, true);
-        when(raceService.createWithOptionalGpx(any(RaceRequest.class), any())).thenReturn(response);
-
+    void createMultipartRaceRejectsLegacyFileAlias() throws Exception {
         mockMvc.perform(multipart("/api/admin/races")
                         .file(racePart())
                         .file(new MockMultipartFile("file", "track.gpx", "application/gpx+xml", "<gpx/>".getBytes())))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(2))
-                .andExpect(jsonPath("$.hasGpx").value(true));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_multipart_file_part"));
 
-        verify(raceService).createWithOptionalGpx(any(RaceRequest.class), any());
+        verifyNoInteractions(raceService, raceGpxService);
     }
 
     @Test
