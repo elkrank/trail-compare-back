@@ -30,6 +30,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
@@ -220,6 +221,23 @@ class AdminRaceControllerIT {
                 .andExpect(jsonPath("$.maxElevationM").value(1250));
 
         verify(raceGpxService).upload(eq(1L), any());
+    }
+
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void uploadGpxAcceptsSameGpxFieldNameAsAdminCreation() throws Exception {
+        RaceGpxUploadResponse response = new RaceGpxUploadResponse(1L, "track.gpx", 2, 12.5, 450, 120, 800, 1250);
+        when(raceGpxService.upload(eq(1L), argThat(file -> file != null && "gpx".equals(file.getName()))))
+                .thenReturn(response);
+
+        mockMvc.perform(multipart("/api/admin/races/{id}/gpx", 1L)
+                        .file(new MockMultipartFile("gpx", "track.gpx", "application/gpx+xml", "<gpx/>".getBytes())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.raceId").value(1))
+                .andExpect(jsonPath("$.fileName").value("track.gpx"));
+
+        verify(raceGpxService).upload(eq(1L), argThat(file -> file != null && "gpx".equals(file.getName())));
     }
 
 
